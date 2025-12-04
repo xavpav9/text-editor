@@ -30,13 +30,15 @@ class ScreenController:
         elif not cursor: self.screen.blit(self.font.render(text, True, WHITE), coords)
         return coords
 
-    def blit_words_to_screen(self, lines, line_number, chars_per_line):
+    def blit_words_to_screen(self, lines, line_number, chars_per_line, current_text_pos, mouse_line):
         text_to_be_blitted = ""
         if len(lines) != 1 or lines[0] != "":
             for o in range(len(lines)):
                 line = lines[o]
                 for word in line.split(" "):
                     if len(text_to_be_blitted + word) > chars_per_line and text_to_be_blitted != "":
+                        if line_number == mouse_line: return text_to_be_blitted, mouse_line, current_text_pos
+                        current_text_pos += len(text_to_be_blitted)
                         self.blit_line_to_screen(text_to_be_blitted, line_number, False)
                         text_to_be_blitted = ""
                         line_number += 1
@@ -46,6 +48,8 @@ class ScreenController:
                         for i in range(len(word)):
                             letter = word[i]
                             if len(text_to_be_blitted + letter) == chars_per_line and i != len(word) - 1:
+                                if line_number == mouse_line: return text_to_be_blitted, mouse_line, current_text_pos
+                                current_text_pos += len(text_to_be_blitted)
                                 self.blit_line_to_screen(text_to_be_blitted + "-", line_number, False)
                                 line_number += 1
                                 text_to_be_blitted = ""
@@ -57,37 +61,70 @@ class ScreenController:
 
                 if o != len(lines) - 1:
                     text_to_be_blitted = text_to_be_blitted[:-1]
+                    if line_number == mouse_line: return text_to_be_blitted, mouse_line, current_text_pos
+                    current_text_pos += len(text_to_be_blitted)
                     self.blit_line_to_screen(text_to_be_blitted, line_number, False)
                     text_to_be_blitted = ""
                     line_number += 1
 
-            
-        if len(text_to_be_blitted) - 1 == chars_per_line:
-            self.blit_line_to_screen(text_to_be_blitted + "", line_number, False)
-            line_number += 1
-            text_to_be_blitted = ""
+        return text_to_be_blitted, line_number, current_text_pos
 
-        return text_to_be_blitted, line_number
-
-    def draw_text(self, text_before_cursor, text_after_cursor, blink, just_typed):
+    def draw_text(self, text_before_cursor, text_after_cursor, blink, just_typed, mouse_line=-1):
         chars_per_line = (self.screen.get_size()[0] - self.padding_x) // self.letter_width
         line_number = 0
+        current_text_pos = 0
 
         if text_before_cursor == "" and text_after_cursor == "":
             self.blit_line_to_screen("", line_number, True, blink)
             return
 
         lines = text_before_cursor.split("\n")
-        text_to_be_blitted, line_number = self.blit_words_to_screen(lines, line_number, chars_per_line)
+        text_to_be_blitted, line_number, current_text_pos = self.blit_words_to_screen(lines, line_number, chars_per_line, current_text_pos, mouse_line)
+        if mouse_line == line_number: return current_text_pos
 
-        self.blit_line_to_screen(text_to_be_blitted[:-1], line_number, True, blink, just_typed)
+        text_to_be_blitted = text_to_be_blitted[:-1]
+        if text_after_cursor != "":
+            last_space = 0
+            for i in range(len(text_to_be_blitted)):
+                if text_to_be_blitted[i] == " ":
+                    last_space = i
 
-        lines = text_after_cursor.split(" ")
+            last_word = text_to_be_blitted[last_space:]
+            first_word = text_after_cursor.split("\n")[0].split(" ")[0]
+            overflowing = len(text_to_be_blitted + first_word) / chars_per_line > 1
+
+            if overflowing:
+                self.blit_line_to_screen(" " * (len(last_word) - 1), line_number + 1, True, blink, just_typed)
+            else:
+                self.blit_line_to_screen(text_to_be_blitted, line_number, True, blink, just_typed)
+        else:
+            self.blit_line_to_screen(text_to_be_blitted, line_number, True, blink, just_typed)
+
+        lines = text_after_cursor.split("\n")
         if len(lines) != 0: lines[0] = text_to_be_blitted + lines[0]
         else: lines.append(text_to_be_blitted)
-        text_to_be_blitted, line_number = self.blit_words_to_screen(lines, line_number, chars_per_line)
+        text_to_be_blitted, line_number, current_text_pos = self.blit_words_to_screen(lines, line_number, chars_per_line, current_text_pos, mouse_line)
+        if mouse_line == line_number: return current_text_pos
 
         self.blit_line_to_screen(text_to_be_blitted[:-1], line_number, False)
+
+        return -1, 0
+
+    def get_character_from_pos(self, mouse_pos, text_before_cursor, text_after_cursor):
+        line_number = 0
+        while mouse_pos[1] > self.scroll_top + self.padding_y + (self.letter_height + self.line_spacing) * line_number:
+            line_number += 1
+        line_number -= 1
+
+        x_index = (mouse_pos[0] - self.padding_x / 2) // self.letter_width
+
+        current_text_pos = self.draw_text(text_before_cursor, text_after_cursor, False, False, line_number)
+        # current_text_pos is the pos of that start of the line
+        if current_text_pos == -1:
+            return text_before_cursor + text_after_cursor, ""
+
+        full_text = text_before_cursor + text_after_cursor
+        return full_text[:int(current_text_pos + x_index)], full_text[int(current_text_pos + x_index):]
 
 
 class TypingOptions:
@@ -195,6 +232,8 @@ while running:
             elif evt.key == pygame.K_DELETE: typingOptions.deleting = -1
         elif evt.type == pygame.MOUSEWHEEL:
             screenController.scroll_top = min(0, screenController.scroll_top + (evt.y * 8))
+        elif evt.type == pygame.MOUSEBUTTONDOWN:
+            if evt.button == 1: text.before_cursor, text.after_cursor = screenController.get_character_from_pos(pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
                 
 
     screen.fill(BLACK)
