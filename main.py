@@ -4,7 +4,7 @@ pygame.init()
 
 WHITE, BLACK = (255,255,255), (0,0,0)
 
-screen = pygame.display.set_mode((400, 500))
+screen = pygame.display.set_mode((400, 200))
 pygame.display.set_caption("Text Editor")
 clock = pygame.time.Clock()
 
@@ -18,9 +18,15 @@ class ScreenController:
         self.letter_width, self.letter_height = self.font.render("a", True, WHITE).get_size()
         self.line_spacing = 12
 
-    def blit_line_to_screen(self, text, line, cursor, blink=False):
-        coords = (self.padding_x / 2, self.padding_y + (self.letter_height + self.line_spacing) * line)
-        if cursor and blink: pygame.draw.rect(screen, WHITE, (coords[0] + len(text) * self.letter_width, coords[1], 2, self.letter_height))
+    def blit_line_to_screen(self, text, line, cursor, blink=False, just_typed=False):
+        coords = (self.padding_x / 2, self.scroll_top + self.padding_y + (self.letter_height + self.line_spacing) * line)
+        if cursor:
+            if blink: pygame.draw.rect(screen, WHITE, (coords[0] + len(text) * self.letter_width, coords[1], 2, self.letter_height))
+            if coords[1] < 0 and just_typed:
+                self.scroll_top +=  (self.line_spacing - coords[1])
+            elif coords[1] + self.letter_height + self.line_spacing > screen.get_size()[1] and just_typed:
+                self.scroll_top -= (coords[1] + self.letter_height + self.line_spacing - screen.get_size()[1])
+            self.scroll_top = min(0, self.scroll_top)
         elif not cursor: self.screen.blit(self.font.render(text, True, WHITE), coords)
         return coords
 
@@ -54,18 +60,18 @@ class ScreenController:
 
         return text_to_be_blitted, line
 
-    def draw_text(self, text_before_cursor, text_after_cursor, blink):
+    def draw_text(self, text_before_cursor, text_after_cursor, blink, just_typed):
         chars_per_line = (self.screen.get_size()[0] - self.padding_x) // self.letter_width
         line = 0
 
         if text_before_cursor == "" and text_after_cursor == "":
-            self.blit_line_to_screen("", line, True and blink)
+            self.blit_line_to_screen("", line, True, blink)
             return
 
         words = text_before_cursor.split(" ")
         text_to_be_blitted, line = self.blit_words_to_screen(words, line, chars_per_line)
 
-        self.blit_line_to_screen(text_to_be_blitted[:-1], line, True, blink)
+        self.blit_line_to_screen(text_to_be_blitted[:-1], line, True, blink, just_typed)
 
         words = [text_to_be_blitted] + text_after_cursor.split(" ")
         text_to_be_blitted, line = self.blit_words_to_screen(words, line, chars_per_line)
@@ -159,12 +165,14 @@ text = Text()
 screenController = ScreenController(screen)
 
 while running:
+    just_typed = False
     for evt in pygame.event.get():
         if evt.type == pygame.QUIT:
             running = False
         elif evt.type == pygame.KEYDOWN:
             typingOptions.reset_blink()
             if not typingOptions.ctrl and typingOptions.is_character_in_char_set(evt.key):
+                just_typed = True
                 text.add_character(typingOptions.get_character(evt.key), typingOptions.caps)
             elif evt.key == pygame.K_BACKSPACE: typingOptions.increment_and_backspace()
             elif evt.key == pygame.K_DELETE: typingOptions.increment_and_delete()
@@ -175,6 +183,8 @@ while running:
             elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL : typingOptions.ctrl = False
             elif evt.key == pygame.K_BACKSPACE: typingOptions.backspacing = -1
             elif evt.key == pygame.K_DELETE: typingOptions.deleting = -1
+        elif evt.type == pygame.MOUSEWHEEL:
+            screenController.scroll_top = min(0, screenController.scroll_top + (evt.y * 8))
                 
 
     screen.fill(BLACK)
@@ -188,7 +198,7 @@ while running:
             if not typingOptions.ctrl: text.remove_character(False)
             else: text.remove_word(False);
 
-    screenController.draw_text(text.before_cursor, text.after_cursor, typingOptions.get_blink_status())
+    screenController.draw_text(text.before_cursor, text.after_cursor, typingOptions.get_blink_status(), just_typed)
 
     pygame.display.flip()
     clock.tick(60)
