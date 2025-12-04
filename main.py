@@ -18,8 +18,8 @@ class ScreenController:
         self.letter_width, self.letter_height = self.font.render("a", True, WHITE).get_size()
         self.line_spacing = 12
 
-    def blit_line_to_screen(self, text, line, cursor, blink=False, just_typed=False):
-        coords = (self.padding_x / 2, self.scroll_top + self.padding_y + (self.letter_height + self.line_spacing) * line)
+    def blit_line_to_screen(self, text, line_number, cursor, blink=False, just_typed=False):
+        coords = (self.padding_x / 2, self.scroll_top + self.padding_y + (self.letter_height + self.line_spacing) * line_number)
         if cursor:
             if blink: pygame.draw.rect(screen, WHITE, (coords[0] + len(text) * self.letter_width, coords[1], 2, self.letter_height))
             if coords[1] < 0 and just_typed:
@@ -30,60 +30,71 @@ class ScreenController:
         elif not cursor: self.screen.blit(self.font.render(text, True, WHITE), coords)
         return coords
 
-    def blit_words_to_screen(self, words, line, chars_per_line):
+    def blit_words_to_screen(self, lines, line_number, chars_per_line):
         text_to_be_blitted = ""
-        if len(words) != 1 or words[0] != "":
-            for word in words:
-                if len(text_to_be_blitted + word) > chars_per_line and text_to_be_blitted != "":
-                    previous_line_coords = self.blit_line_to_screen(text_to_be_blitted, line, False)
+        if len(lines) != 1 or lines[0] != "":
+            for o in range(len(lines)):
+                line = lines[o]
+                for word in line.split(" "):
+                    if len(text_to_be_blitted + word) > chars_per_line and text_to_be_blitted != "":
+                        self.blit_line_to_screen(text_to_be_blitted, line_number, False)
+                        text_to_be_blitted = ""
+                        line_number += 1
+
+                    if len(word) > chars_per_line:
+                        text_to_be_blitted = ""
+                        for i in range(len(word)):
+                            letter = word[i]
+                            if len(text_to_be_blitted + letter) == chars_per_line and i != len(word) - 1:
+                                self.blit_line_to_screen(text_to_be_blitted + "-", line_number, False)
+                                line_number += 1
+                                text_to_be_blitted = ""
+                            text_to_be_blitted += letter
+
+                        text_to_be_blitted += " "
+                    else:
+                        text_to_be_blitted += word + " "
+
+                if o != len(lines) - 1:
+                    text_to_be_blitted = text_to_be_blitted[:-1]
+                    self.blit_line_to_screen(text_to_be_blitted, line_number, False)
                     text_to_be_blitted = ""
-                    line += 1
+                    line_number += 1
 
-                if len(word) > chars_per_line:
-                    text_to_be_blitted = ""
-                    for i in range(len(word)):
-                        letter = word[i]
-                        if len(text_to_be_blitted + letter) == chars_per_line and i != len(word) - 1:
-                            self.blit_line_to_screen(text_to_be_blitted + "-", line, False)
-                            line += 1
-                            text_to_be_blitted = ""
-                        text_to_be_blitted += letter
-
-                    text_to_be_blitted += " "
-                else:
-                    text_to_be_blitted += word + " "
-
+            
         if len(text_to_be_blitted) - 1 == chars_per_line:
-            self.blit_line_to_screen(text_to_be_blitted + "", line, False)
-            line += 1
+            self.blit_line_to_screen(text_to_be_blitted + "", line_number, False)
+            line_number += 1
             text_to_be_blitted = ""
 
-        return text_to_be_blitted, line
+        return text_to_be_blitted, line_number
 
     def draw_text(self, text_before_cursor, text_after_cursor, blink, just_typed):
         chars_per_line = (self.screen.get_size()[0] - self.padding_x) // self.letter_width
-        line = 0
+        line_number = 0
 
         if text_before_cursor == "" and text_after_cursor == "":
-            self.blit_line_to_screen("", line, True, blink)
+            self.blit_line_to_screen("", line_number, True, blink)
             return
 
-        words = text_before_cursor.split(" ")
-        text_to_be_blitted, line = self.blit_words_to_screen(words, line, chars_per_line)
+        lines = text_before_cursor.split("\n")
+        text_to_be_blitted, line_number = self.blit_words_to_screen(lines, line_number, chars_per_line)
 
-        self.blit_line_to_screen(text_to_be_blitted[:-1], line, True, blink, just_typed)
+        self.blit_line_to_screen(text_to_be_blitted[:-1], line_number, True, blink, just_typed)
 
-        words = [text_to_be_blitted] + text_after_cursor.split(" ")
-        text_to_be_blitted, line = self.blit_words_to_screen(words, line, chars_per_line)
+        lines = text_after_cursor.split(" ")
+        if len(lines) != 0: lines[0] = text_to_be_blitted + lines[0]
+        else: lines.append(text_to_be_blitted)
+        text_to_be_blitted, line_number = self.blit_words_to_screen(lines, line_number, chars_per_line)
 
-        self.blit_line_to_screen(text_to_be_blitted[:-1], line, False)
+        self.blit_line_to_screen(text_to_be_blitted[:-1], line_number, False)
 
 
 class TypingOptions:
     def __init__(self):
         self._caps = False
         self._ctrl = False
-        self.char_map = { pygame.K_SPACE: " ", pygame.K_EXCLAIM: "!", pygame.K_QUOTEDBL: "\"", pygame.K_HASH: "#", pygame.K_DOLLAR: "$", pygame.K_AMPERSAND: "&", pygame.K_QUOTE: "'", pygame.K_LEFTPAREN: "(", pygame.K_RIGHTPAREN: ")", pygame.K_ASTERISK: "*", pygame.K_PLUS: "+", pygame.K_COMMA: ",", pygame.K_MINUS: "-", pygame.K_PERIOD: ".", pygame.K_SLASH: "/", pygame.K_0: "0", pygame.K_1: "1", pygame.K_2: "2", pygame.K_3: "3", pygame.K_4: "4", pygame.K_5: "5", pygame.K_6: "6", pygame.K_7: "7", pygame.K_8: "8", pygame.K_9: "9", pygame.K_COLON: ":", pygame.K_SEMICOLON: ";", pygame.K_LESS: "<", pygame.K_EQUALS: "=", pygame.K_GREATER: ">", pygame.K_QUESTION: "?", pygame.K_AT: "@", pygame.K_LEFTBRACKET: "[", pygame.K_BACKSLASH: "\\", pygame.K_RIGHTBRACKET: "]", pygame.K_CARET: "^", pygame.K_UNDERSCORE: "_", pygame.K_BACKQUOTE: "`", pygame.K_a: "a", pygame.K_b: "b", pygame.K_c: "c", pygame.K_d: "d", pygame.K_e: "e", pygame.K_f: "f", pygame.K_g: "g", pygame.K_h: "h", pygame.K_i: "i", pygame.K_j: "j", pygame.K_k: "k", pygame.K_l: "l", pygame.K_m: "m", pygame.K_n: "n", pygame.K_o: "o", pygame.K_p: "p", pygame.K_q: "q", pygame.K_r: "r", pygame.K_s: "s", pygame.K_t: "t", pygame.K_u: "u", pygame.K_v: "v", pygame.K_w: "w", pygame.K_x: "x", pygame.K_y: "y", pygame.K_z: "z", pygame.K_KP_DIVIDE: "/", pygame.K_KP_MULTIPLY: "*", pygame.K_KP_MINUS: "-", pygame.K_KP_PLUS: "+", pygame.K_KP_EQUALS: "=", }
+        self.char_map = { pygame.K_SPACE: " ", pygame.K_EXCLAIM: "!", pygame.K_QUOTEDBL: "\"", pygame.K_HASH: "#", pygame.K_DOLLAR: "$", pygame.K_AMPERSAND: "&", pygame.K_QUOTE: "'", pygame.K_LEFTPAREN: "(", pygame.K_RIGHTPAREN: ")", pygame.K_ASTERISK: "*", pygame.K_PLUS: "+", pygame.K_COMMA: ",", pygame.K_MINUS: "-", pygame.K_PERIOD: ".", pygame.K_SLASH: "/", pygame.K_0: "0", pygame.K_1: "1", pygame.K_2: "2", pygame.K_3: "3", pygame.K_4: "4", pygame.K_5: "5", pygame.K_6: "6", pygame.K_7: "7", pygame.K_8: "8", pygame.K_9: "9", pygame.K_COLON: ":", pygame.K_SEMICOLON: ";", pygame.K_LESS: "<", pygame.K_EQUALS: "=", pygame.K_GREATER: ">", pygame.K_QUESTION: "?", pygame.K_AT: "@", pygame.K_LEFTBRACKET: "[", pygame.K_BACKSLASH: "\\", pygame.K_RIGHTBRACKET: "]", pygame.K_CARET: "^", pygame.K_UNDERSCORE: "_", pygame.K_BACKQUOTE: "`", pygame.K_a: "a", pygame.K_b: "b", pygame.K_c: "c", pygame.K_d: "d", pygame.K_e: "e", pygame.K_f: "f", pygame.K_g: "g", pygame.K_h: "h", pygame.K_i: "i", pygame.K_j: "j", pygame.K_k: "k", pygame.K_l: "l", pygame.K_m: "m", pygame.K_n: "n", pygame.K_o: "o", pygame.K_p: "p", pygame.K_q: "q", pygame.K_r: "r", pygame.K_s: "s", pygame.K_t: "t", pygame.K_u: "u", pygame.K_v: "v", pygame.K_w: "w", pygame.K_x: "x", pygame.K_y: "y", pygame.K_z: "z", pygame.K_KP_DIVIDE: "/", pygame.K_KP_MULTIPLY: "*", pygame.K_KP_MINUS: "-", pygame.K_KP_PLUS: "+", pygame.K_KP_EQUALS: "=", pygame.K_RETURN: "\n"}
         self.blink = 0
         self.blink_period = 30
         self.backspacing = -1
@@ -154,10 +165,9 @@ class Text:
             if self.before_cursor != "": self.before_cursor = self.before_cursor[:-1]
         elif not is_backspace:
             #to fix
-            self.after_cursor = self.after_cursor[1:]
-            while self.before_cursor != "" and self.before_cursor[-1] != " ":
-                self.before_cursor = self.before_cursor[:-1]
-            if self.before_cursor != "": self.before_cursor = self.before_cursor[:-1]
+            while self.after_cursor != "" and self.after_cursor[0] != " ":
+                self.after_cursor = self.after_cursor[1:]
+            if self.after_cursor != "": self.after_cursor = self.after_cursor[1:]
 
 running = True
 typingOptions = TypingOptions()
