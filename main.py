@@ -80,6 +80,8 @@ class TypingOptions:
         self.char_map = { pygame.K_SPACE: " ", pygame.K_EXCLAIM: "!", pygame.K_QUOTEDBL: "\"", pygame.K_HASH: "#", pygame.K_DOLLAR: "$", pygame.K_AMPERSAND: "&", pygame.K_QUOTE: "'", pygame.K_LEFTPAREN: "(", pygame.K_RIGHTPAREN: ")", pygame.K_ASTERISK: "*", pygame.K_PLUS: "+", pygame.K_COMMA: ",", pygame.K_MINUS: "-", pygame.K_PERIOD: ".", pygame.K_SLASH: "/", pygame.K_0: "0", pygame.K_1: "1", pygame.K_2: "2", pygame.K_3: "3", pygame.K_4: "4", pygame.K_5: "5", pygame.K_6: "6", pygame.K_7: "7", pygame.K_8: "8", pygame.K_9: "9", pygame.K_COLON: ":", pygame.K_SEMICOLON: ";", pygame.K_LESS: "<", pygame.K_EQUALS: "=", pygame.K_GREATER: ">", pygame.K_QUESTION: "?", pygame.K_AT: "@", pygame.K_LEFTBRACKET: "[", pygame.K_BACKSLASH: "\\", pygame.K_RIGHTBRACKET: "]", pygame.K_CARET: "^", pygame.K_UNDERSCORE: "_", pygame.K_BACKQUOTE: "`", pygame.K_a: "a", pygame.K_b: "b", pygame.K_c: "c", pygame.K_d: "d", pygame.K_e: "e", pygame.K_f: "f", pygame.K_g: "g", pygame.K_h: "h", pygame.K_i: "i", pygame.K_j: "j", pygame.K_k: "k", pygame.K_l: "l", pygame.K_m: "m", pygame.K_n: "n", pygame.K_o: "o", pygame.K_p: "p", pygame.K_q: "q", pygame.K_r: "r", pygame.K_s: "s", pygame.K_t: "t", pygame.K_u: "u", pygame.K_v: "v", pygame.K_w: "w", pygame.K_x: "x", pygame.K_y: "y", pygame.K_z: "z", pygame.K_KP_DIVIDE: "/", pygame.K_KP_MULTIPLY: "*", pygame.K_KP_MINUS: "-", pygame.K_KP_PLUS: "+", pygame.K_KP_EQUALS: "=", }
         self.blink = 0
         self.blink_period = 30
+        self.backspacing = -1
+        self.deleting = -1
 
     @property
     def ctrl(self):
@@ -111,6 +113,21 @@ class TypingOptions:
     def get_blink_status(self):
         return self.blink < self.blink_period
 
+    def increment_and_backspace(self):
+        backspace = False
+        if self.backspacing == 0 or (self.backspacing > 30 and self.backspacing % 3 == 0):
+            backspace = True
+        self.backspacing += 1
+        return backspace
+
+    def increment_and_delete(self):
+        delete = False
+        if self.deleting == 0 or (self.deleting > 30 and self.deleting % 3 == 0):
+            delete = True
+        self.deleting += 1
+        return delete
+
+
 class Text:
     def __init__(self):
         self.before_cursor = ""
@@ -123,6 +140,18 @@ class Text:
     def remove_character(self, is_backspace):
         if self.before_cursor != "" and is_backspace: self.before_cursor = self.before_cursor[:-1]
         elif self.after_cursor != "" and not is_backspace: self.after_cursor = self.after_cursor[1:]
+
+    def remove_word(self, is_backspace):
+        if is_backspace:
+            while self.before_cursor != "" and self.before_cursor[-1] != " ":
+                self.before_cursor = self.before_cursor[:-1]
+            if self.before_cursor != "": self.before_cursor = self.before_cursor[:-1]
+        elif not is_backspace:
+            #to fix
+            self.after_cursor = self.after_cursor[1:]
+            while self.before_cursor != "" and self.before_cursor[-1] != " ":
+                self.before_cursor = self.before_cursor[:-1]
+            if self.before_cursor != "": self.before_cursor = self.before_cursor[:-1]
 
 running = True
 typingOptions = TypingOptions()
@@ -137,17 +166,27 @@ while running:
             typingOptions.reset_blink()
             if not typingOptions.ctrl and typingOptions.is_character_in_char_set(evt.key):
                 text.add_character(typingOptions.get_character(evt.key), typingOptions.caps)
-            elif evt.key == pygame.K_BACKSPACE: text.remove_character(True)
-            elif evt.key == pygame.K_DELETE: text.remove_character(False)
+            elif evt.key == pygame.K_BACKSPACE: typingOptions.increment_and_backspace()
+            elif evt.key == pygame.K_DELETE: typingOptions.increment_and_delete()
             elif evt.key == pygame.K_CAPSLOCK or evt.key == pygame.K_LSHIFT or evt.key == pygame.K_RSHIFT: typingOptions.flip_caps()
             elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL : typingOptions.ctrl = True
         elif evt.type == pygame.KEYUP:
             if evt.key == pygame.K_LSHIFT or evt.key == pygame.K_RSHIFT: typingOptions.flip_caps()
             elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL : typingOptions.ctrl = False
+            elif evt.key == pygame.K_BACKSPACE: typingOptions.backspacing = -1
+            elif evt.key == pygame.K_DELETE: typingOptions.deleting = -1
                 
 
     screen.fill(BLACK)
     typingOptions.increment_blink()
+    if typingOptions.backspacing != -1:
+        if typingOptions.increment_and_backspace():
+            if not typingOptions.ctrl: text.remove_character(True)
+            else: text.remove_word(True);
+    if typingOptions.deleting != -1:
+        if typingOptions.increment_and_delete():
+            if not typingOptions.ctrl: text.remove_character(False)
+            else: text.remove_word(False);
 
     screenController.draw_text(text.before_cursor, text.after_cursor, typingOptions.get_blink_status())
 
