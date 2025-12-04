@@ -35,16 +35,22 @@ class ScreenController:
 
                 if len(word) > chars_per_line:
                     text_to_be_blitted = ""
-                    for letter in word:
-                        text_to_be_blitted += letter
-                        if len(text_to_be_blitted) == chars_per_line - 1:
-                            previous_line_coords = self.blit_line_to_screen(text_to_be_blitted + "-", line, False)
+                    for i in range(len(word)):
+                        letter = word[i]
+                        if len(text_to_be_blitted + letter) == chars_per_line and i != len(word) - 1:
+                            self.blit_line_to_screen(text_to_be_blitted + "-", line, False)
                             line += 1
                             text_to_be_blitted = ""
+                        text_to_be_blitted += letter
 
                     text_to_be_blitted += " "
                 else:
                     text_to_be_blitted += word + " "
+
+        if len(text_to_be_blitted) - 1 == chars_per_line:
+            self.blit_line_to_screen(text_to_be_blitted + "", line, False)
+            line += 1
+            text_to_be_blitted = ""
 
         return text_to_be_blitted, line
 
