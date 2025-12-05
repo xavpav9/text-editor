@@ -40,7 +40,7 @@ class ScreenController:
                     if len(current_line + word) > chars_per_line and current_line != "":
                         new_lines.append([current_text_pos, current_line])
                         current_text_pos += len(current_line)
-                        if j != len(lines[o].split(" ")) - 1: current_text_pos += 1 # to account for spaces
+                        current_text_pos += 1 # to account for spaces
                         current_line = ""
 
                     if len(word) > chars_per_line:
@@ -49,7 +49,6 @@ class ScreenController:
                             if len(current_line + word[i]) == chars_per_line and i != len(word) - 1:
                                 new_lines.append([current_text_pos, current_line + "-"])
                                 current_text_pos += len(current_line)
-                                if j != len(lines[o].split(" ")) - 1: current_text_pos += 1 # to account for spaces
                                 current_line = ""
                             current_line += word[i]
 
@@ -103,7 +102,7 @@ class ScreenController:
 
         return new_lines
 
-    def get_character_from_pos(self, mouse_pos, text_before_cursor, text_after_cursor):
+    def get_new_text_positions(self, mouse_pos, text_before_cursor, text_after_cursor):
         line_number = 0
         while mouse_pos[1] > self.scroll_top + self.padding_y + (self.letter_height + self.line_spacing) * line_number:
             line_number += 1
@@ -112,14 +111,12 @@ class ScreenController:
         x_index = (mouse_pos[0] - self.padding_x / 2) // self.letter_width
 
         formatted_lines = self.draw_text(False, text_before_cursor, text_after_cursor, False, False)
-        print(formatted_lines)
 
         if line_number < len(formatted_lines):
             full_text = text_before_cursor + text_after_cursor
             current_text_pos = formatted_lines[line_number][0]
             line_length = len(formatted_lines[line_number][1])
             distance_across = int(current_text_pos + min(line_length, x_index))
-            print(full_text, distance_across)
             return full_text[:distance_across], full_text[distance_across:]
         else:
             return text_before_cursor + text_after_cursor, ""
@@ -231,7 +228,10 @@ while running:
         elif evt.type == pygame.MOUSEWHEEL:
             screenController.scroll_top = min(0, screenController.scroll_top + (evt.y * 8))
         elif evt.type == pygame.MOUSEBUTTONDOWN:
-            if evt.button == 1: text.before_cursor, text.after_cursor = screenController.get_character_from_pos(pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
+            if evt.button == 1:
+                text.before_cursor, text.after_cursor = screenController.get_new_text_positions(pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
+                typingOptions.reset_blink()
+
                 
 
     screen.fill(BLACK)
