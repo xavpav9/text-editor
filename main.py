@@ -108,7 +108,7 @@ class ScreenController:
             line_number += 1
         line_number -= 1
 
-        x_index = (mouse_pos[0] - self.padding_x / 2) // self.letter_width
+        x_index = max(0, (mouse_pos[0] - self.padding_x / 2) // self.letter_width)
 
         formatted_lines = self.draw_text(False, text_before_cursor, text_after_cursor, False, False)
 
@@ -117,9 +117,29 @@ class ScreenController:
             current_text_pos = formatted_lines[line_number][0]
             line_length = len(formatted_lines[line_number][1])
             distance_across = int(current_text_pos + min(line_length, x_index))
-            return full_text[:distance_across], full_text[distance_across:]
+            return full_text[:distance_across], full_text[distance_across:], formatted_lines[line_number][1]
         else:
-            return text_before_cursor + text_after_cursor, ""
+            return text_before_cursor + text_after_cursor, "", ""
+
+    def get_selected_text(self, cursor_pos, mouse_pos, text_before_cursor, text_after_cursor):
+        new_text_before, new_text_after, line = self.get_new_text_positions(mouse_pos, text_before_cursor, text_after_cursor)
+        chars_per_line = (self.screen.get_size()[0] - self.padding_x) // self.letter_width - 1
+        print(mouse_pos)
+        print(line)
+        full_text = text_before_cursor + text_after_cursor
+
+        if len(new_text_before) >= len(text_before_cursor):
+            if " " not in line and len(line) == chars_per_line and mouse_pos[0] > (chars_per_line) * self.letter_width + self.padding_x / 2:
+                start_pos, end_pos = len(text_before_cursor), len(new_text_before) - 1
+                # for when there is only one word, do not interpret the hyphen as the next letter
+            else: start_pos, end_pos = len(text_before_cursor), len(new_text_before)
+        else:
+            if mouse_pos[0] <= self.padding_x: start_pos, end_pos = len(full_text) - len(new_text_after),len(text_before_cursor)
+                # for when the mouse is out of the editable screen, select the first letter of the line
+            else: start_pos, end_pos = len(full_text) - len(new_text_after) + 1,len(text_before_cursor)
+
+        return full_text[start_pos:end_pos]
+
 
 
 class TypingOptions:
@@ -131,6 +151,8 @@ class TypingOptions:
         self.blink_period = 30
         self.backspacing = -1
         self.deleting = -1
+        self.holding = False
+        self.recent_click = (0,0)
 
     @property
     def ctrl(self):
@@ -229,8 +251,12 @@ while running:
             screenController.scroll_top = min(0, screenController.scroll_top + (evt.y * 8))
         elif evt.type == pygame.MOUSEBUTTONDOWN:
             if evt.button == 1:
-                text.before_cursor, text.after_cursor = screenController.get_new_text_positions(pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
+                typingOptions.holding = True
+                typingOptions.recent_click = pygame.mouse.get_pos()
+                text.before_cursor, text.after_cursor, _ = screenController.get_new_text_positions(pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
                 typingOptions.reset_blink()
+        elif evt.type == pygame.MOUSEBUTTONUP:
+            if evt.button == 1: typingOptions.holding = False
 
                 
 
@@ -244,6 +270,9 @@ while running:
         if typingOptions.increment_and_delete():
             if not typingOptions.ctrl: text.remove_character(False)
             else: text.remove_word(False);
+    if typingOptions.holding:
+            selected_text = screenController.get_selected_text(typingOptions.recent_click, pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
+            print(selected_text)
 
     screenController.draw_text(True, text.before_cursor, text.after_cursor, typingOptions.get_blink_status(), just_typed)
 
