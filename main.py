@@ -70,7 +70,7 @@ class ScreenController:
                             current_line += word[i]
 
                     else:
-                        if len(current_line) > 0: current_line += " "
+                        if len(current_line) > 0 or (j != 0 and word == ""): current_line += " " # space between words, unless newline, but not if newline and spaces
                         current_line += word
 
                 if o != len(lines) - 1:
