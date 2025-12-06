@@ -2,7 +2,7 @@ import pygame
 
 pygame.init()
 
-WHITE, BLACK = (255,255,255), (0,0,0)
+WHITE, BLACK, LIGHT_BLUE = (255,255,255), (0,0,0), (128,128,255)
 
 screen = pygame.display.set_mode((400, 200))
 pygame.display.set_caption("Text Editor")
@@ -17,8 +17,9 @@ class ScreenController:
         self.font = pygame.font.SysFont("Courier", 28, False, False)
         self.letter_width, self.letter_height = self.font.render("a", True, WHITE).get_size()
         self.line_spacing = 12
+        self.highlighting = False
 
-    def blit_line_to_screen(self, text, line_number, cursor, blink=False, just_typed=False):
+    def blit_line_to_screen(self, text, line_number, cursor, blink=False, just_typed=False, start_highlight=0, end_highlight=-1):
         coords = (self.padding_x / 2, self.scroll_top + self.padding_y + (self.letter_height + self.line_spacing) * line_number)
         if cursor:
             if blink: pygame.draw.rect(screen, WHITE, (coords[0] + len(text) * self.letter_width, coords[1], 2, self.letter_height))
@@ -27,7 +28,10 @@ class ScreenController:
             elif coords[1] + self.letter_height + self.line_spacing > screen.get_size()[1] and just_typed:
                 self.scroll_top -= (coords[1] + self.letter_height + self.line_spacing - screen.get_size()[1])
             self.scroll_top = min(0, self.scroll_top)
-        elif not cursor: self.screen.blit(self.font.render(text, True, WHITE), coords)
+        elif self.highlighting:
+            pygame.draw.rect(screen, LIGHT_BLUE, (coords[0] + start_highlight * self.letter_width, coords[1], (end_highlight - start_highlight) * self.letter_width, self.letter_height))
+            self.screen.blit(self.font.render(text, True, WHITE), coords)
+        else: self.screen.blit(self.font.render(text, True, WHITE), coords)
         return coords
 
     def format_lines(self, lines, current_text_pos, chars_per_line):
@@ -63,7 +67,7 @@ class ScreenController:
 
         return new_lines, current_line, current_text_pos
 
-    def draw_text(self, draw, text_before_cursor, text_after_cursor, blink, just_typed):
+    def draw_text(self, draw, text_before_cursor, text_after_cursor, blink, just_typed, highlighted_range=[-1,-1]):
         chars_per_line = (self.screen.get_size()[0] - self.padding_x) // self.letter_width - 1
         current_text_pos = 0
         new_lines = []
@@ -91,7 +95,13 @@ class ScreenController:
 
         if draw:
             for i in range(len(new_lines)):
-                self.blit_line_to_screen(new_lines[i][1], i, False, blink, just_typed)
+                if highlighted_range[0] >= new_lines[i][0]: self.highlighting = True
+
+                if self.highlighting and highlighted_range[1] > new_lines[i][0]:
+                    self.blit_line_to_screen(new_lines[i][1], i, False, blink, just_typed, max(0, highlighted_range[0] - new_lines[i][0]), min(len(new_lines[i][1]), highlighted_range[1] - new_lines[i][0]))
+                else:
+                    self.highlighting = False
+                    self.blit_line_to_screen(new_lines[i][1], i, False, blink, just_typed)
 
                 if i == cursor_position[0]:
                     if len(new_lines[i][1]) >= len(cursor_position[1]):
@@ -99,6 +109,8 @@ class ScreenController:
                     else:
                         last_word = cursor_position[1].split(" ")[-1]
                         self.blit_line_to_screen(last_word, i + 1, True, blink, just_typed)
+
+            self.highlighting = False
 
         return new_lines
 
@@ -121,24 +133,22 @@ class ScreenController:
         else:
             return text_before_cursor + text_after_cursor, "", ""
 
-    def get_selected_text(self, cursor_pos, mouse_pos, text_before_cursor, text_after_cursor):
-        new_text_before, new_text_after, line = self.get_new_text_positions(mouse_pos, text_before_cursor, text_after_cursor)
+    def get_selected_text(self, cursor_pos, mouse_pos, new_text_before, new_text_after):
+        old_text_before, old_text_after, line = self.get_new_text_positions(cursor_pos, new_text_before, new_text_after)
         chars_per_line = (self.screen.get_size()[0] - self.padding_x) // self.letter_width - 1
-        print(mouse_pos)
-        print(line)
-        full_text = text_before_cursor + text_after_cursor
+        full_text = new_text_before + new_text_after
 
-        if len(new_text_before) >= len(text_before_cursor):
-            if " " not in line and len(line) == chars_per_line and mouse_pos[0] > (chars_per_line) * self.letter_width + self.padding_x / 2:
-                start_pos, end_pos = len(text_before_cursor), len(new_text_before) - 1
+        if len(new_text_before) >= len(old_text_before):
+            if " " not in line and len(line) == chars_per_line and cursor_pos[0] > (chars_per_line) * self.letter_width + self.padding_x / 2:
+                start_pos, end_pos = len(old_text_before), len(new_text_before) - 1
                 # for when there is only one word, do not interpret the hyphen as the next letter
-            else: start_pos, end_pos = len(text_before_cursor), len(new_text_before)
+            else: start_pos, end_pos = len(old_text_before), len(new_text_before)
         else:
-            if mouse_pos[0] <= self.padding_x: start_pos, end_pos = len(full_text) - len(new_text_after),len(text_before_cursor)
+            if cursor_pos[0] <= self.padding_x / 2: start_pos, end_pos = len(full_text) - len(new_text_after), len(old_text_before)
                 # for when the mouse is out of the editable screen, select the first letter of the line
-            else: start_pos, end_pos = len(full_text) - len(new_text_after) + 1,len(text_before_cursor)
+            else: start_pos, end_pos = len(full_text) - len(new_text_after),len(old_text_before)
 
-        return full_text[start_pos:end_pos]
+        return start_pos, end_pos
 
 
 
@@ -203,6 +213,7 @@ class Text:
     def __init__(self):
         self.before_cursor = ""
         self.after_cursor = ""
+        self.selected_range = [-1, -1]
 
     def add_character(self, letter, caps):
         if caps: self.before_cursor += letter.upper()
@@ -236,10 +247,15 @@ while running:
         elif evt.type == pygame.KEYDOWN:
             typingOptions.reset_blink()
             if not typingOptions.ctrl and typingOptions.is_character_in_char_set(evt.key):
+                text.selected_range = [-1,-1]
                 just_typed = True
                 text.add_character(typingOptions.get_character(evt.key), typingOptions.caps)
-            elif evt.key == pygame.K_BACKSPACE: typingOptions.increment_and_backspace()
-            elif evt.key == pygame.K_DELETE: typingOptions.increment_and_delete()
+            elif evt.key == pygame.K_BACKSPACE: 
+                text.selected_range = [-1,-1]
+                typingOptions.increment_and_backspace()
+            elif evt.key == pygame.K_DELETE:
+                text.selected_range = [-1,-1]
+                typingOptions.increment_and_delete()
             elif evt.key == pygame.K_CAPSLOCK or evt.key == pygame.K_LSHIFT or evt.key == pygame.K_RSHIFT: typingOptions.flip_caps()
             elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL : typingOptions.ctrl = True
         elif evt.type == pygame.KEYUP:
@@ -271,10 +287,10 @@ while running:
             if not typingOptions.ctrl: text.remove_character(False)
             else: text.remove_word(False);
     if typingOptions.holding:
-            selected_text = screenController.get_selected_text(typingOptions.recent_click, pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
-            print(selected_text)
+        text.before_cursor, text.after_cursor, line = screenController.get_new_text_positions(pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
+        text.selected_range = screenController.get_selected_text(typingOptions.recent_click, pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
 
-    screenController.draw_text(True, text.before_cursor, text.after_cursor, typingOptions.get_blink_status(), just_typed)
+    screenController.draw_text(True, text.before_cursor, text.after_cursor, typingOptions.get_blink_status(), just_typed, text.selected_range)
 
     pygame.display.flip()
     clock.tick(60)
