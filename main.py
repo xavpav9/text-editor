@@ -3,6 +3,7 @@ import pygame, pyperclip
 pygame.init()
 
 WHITE, BLACK, LIGHT_BLUE = (255,255,255), (0,0,0), (128,128,255)
+FPS = 60
 
 screen = pygame.display.set_mode((400, 200))
 pygame.display.set_caption("Text Editor")
@@ -15,10 +16,20 @@ class ScreenController:
         self.scroll_top = 0
         self.padding_x = 20
         self.padding_y = 15
-        self.font = pygame.font.SysFont("Courier", 28, False, False)
-        self.letter_width, self.letter_height = self.font.render("a", True, WHITE).get_size()
+        self.set_font("Courier", 28, False, False)
         self.line_spacing = 12
         self.highlighting = False
+
+    def set_font(self, typeface, size, bold, italics):
+        if typeface != None: self.typeface = typeface
+        if size != None: self.font_size = size
+        if bold != None: self.bold = bold
+        if italics != None: self.italics = italics
+
+        self.font_size = min(75, max(4, self.font_size))
+
+        self.font = pygame.font.SysFont(self.typeface, self.font_size, self.bold, self.italics)
+        self.letter_width, self.letter_height = self.font.render("a", True, WHITE).get_size()
 
     def get_line_number(self, mouse_y):
         line_number = 0
@@ -179,14 +190,18 @@ class ScreenController:
 class TypingOptions:
     def __init__(self):
         self._caps = False
+        self.shifts = [False, False]
         self._ctrl = False
         self.char_map = { pygame.K_SPACE: " ", pygame.K_EXCLAIM: "!", pygame.K_QUOTEDBL: "\"", pygame.K_HASH: "#", pygame.K_DOLLAR: "$", pygame.K_AMPERSAND: "&", pygame.K_QUOTE: "'", pygame.K_LEFTPAREN: "(", pygame.K_RIGHTPAREN: ")", pygame.K_ASTERISK: "*", pygame.K_PLUS: "+", pygame.K_COMMA: ",", pygame.K_MINUS: "-", pygame.K_PERIOD: ".", pygame.K_SLASH: "/", pygame.K_0: "0", pygame.K_1: "1", pygame.K_2: "2", pygame.K_3: "3", pygame.K_4: "4", pygame.K_5: "5", pygame.K_6: "6", pygame.K_7: "7", pygame.K_8: "8", pygame.K_9: "9", pygame.K_COLON: ":", pygame.K_SEMICOLON: ";", pygame.K_LESS: "<", pygame.K_EQUALS: "=", pygame.K_GREATER: ">", pygame.K_QUESTION: "?", pygame.K_AT: "@", pygame.K_LEFTBRACKET: "[", pygame.K_BACKSLASH: "\\", pygame.K_RIGHTBRACKET: "]", pygame.K_CARET: "^", pygame.K_UNDERSCORE: "_", pygame.K_BACKQUOTE: "`", pygame.K_a: "a", pygame.K_b: "b", pygame.K_c: "c", pygame.K_d: "d", pygame.K_e: "e", pygame.K_f: "f", pygame.K_g: "g", pygame.K_h: "h", pygame.K_i: "i", pygame.K_j: "j", pygame.K_k: "k", pygame.K_l: "l", pygame.K_m: "m", pygame.K_n: "n", pygame.K_o: "o", pygame.K_p: "p", pygame.K_q: "q", pygame.K_r: "r", pygame.K_s: "s", pygame.K_t: "t", pygame.K_u: "u", pygame.K_v: "v", pygame.K_w: "w", pygame.K_x: "x", pygame.K_y: "y", pygame.K_z: "z", pygame.K_KP_DIVIDE: "/", pygame.K_KP_MULTIPLY: "*", pygame.K_KP_MINUS: "-", pygame.K_KP_PLUS: "+", pygame.K_KP_EQUALS: "=", pygame.K_RETURN: "\n"}
         self.blink = 0
         self.blink_period = 30
-        self.backspacing = -1
-        self.deleting = -1
         self.holding = False
         self.recent_click = (0,0)
+
+        self.backspacing = -1
+        self.deleting = -1
+        self.maximising = -1
+        self.minimising = -1
 
     @property
     def ctrl(self):
@@ -218,19 +233,27 @@ class TypingOptions:
     def get_blink_status(self):
         return self.blink < self.blink_period
 
-    def increment_and_backspace(self):
-        backspace = False
-        if self.backspacing == 0 or (self.backspacing > 30 and self.backspacing % 3 == 0):
-            backspace = True
-        self.backspacing += 1
-        return backspace
+    def increment_counter(self, counter_name):
+        counter_value = 0
+        match counter_name:
+            case "backspace":
+                counter_value = self.backspacing
+                self.backspacing += 1
+            case "delete":
+                counter_value = self.deleting
+                self.deleting += 1
+            case "maximise":
+                counter_value = self.maximising
+                self.maximising += 1
+            case "minimise":
+                counter_value = self.minimising
+                self.minimising += 1
+            case _:
+                raise Exception("Invalid counter")
 
-    def increment_and_delete(self):
-        delete = False
-        if self.deleting == 0 or (self.deleting > 30 and self.deleting % 3 == 0):
-            delete = True
-        self.deleting += 1
-        return delete
+        if counter_value == 0 or (counter_value > 30 and counter_value % 3 == 0):
+            return True
+        return False
 
 
 class Text:
@@ -279,18 +302,27 @@ while running:
             if not typingOptions.ctrl and typingOptions.is_character_in_char_set(evt.key):
                 text.remove_selected()
                 just_typed = True
-                text.add_character(typingOptions.get_character(evt.key), typingOptions.caps)
-            elif evt.key == pygame.K_BACKSPACE: typingOptions.increment_and_backspace()
-            elif evt.key == pygame.K_DELETE: typingOptions.increment_and_delete()
-            elif evt.key == pygame.K_CAPSLOCK or evt.key == pygame.K_LSHIFT or evt.key == pygame.K_RSHIFT: typingOptions.flip_caps()
+                text.add_character(typingOptions.get_character(evt.key), typingOptions.caps ^ any(typingOptions.shifts))
+            elif evt.key == pygame.K_BACKSPACE: typingOptions.increment_counter("backspace")
+            elif evt.key == pygame.K_DELETE: typingOptions.increment_counter("delete")
+            elif evt.key == pygame.K_CAPSLOCK: typingOptions.flip_caps()
+            elif evt.key == pygame.K_LSHIFT: typingOptions.shifts[0] = True
+            elif evt.key == pygame.K_RSHIFT: typingOptions.shifts[1] = True
             elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL: typingOptions.ctrl = True
             elif evt.key == pygame.K_c and typingOptions.ctrl: pyperclip.copy(f"{text.before_cursor}{text.after_cursor}"[text.selected_range[0]:text.selected_range[1]])
             elif evt.key == pygame.K_v and typingOptions.ctrl: text.before_cursor += pyperclip.paste()
+            elif evt.unicode == "+" and typingOptions.ctrl: typingOptions.increment_counter("maximise")
+            elif evt.key == pygame.K_MINUS and typingOptions.ctrl: typingOptions.increment_counter("minimise")
+            elif evt.key == pygame.K_b and typingOptions.ctrl: screenController.set_font(None, None, not screenController.bold, None)
+            elif evt.key == pygame.K_i and typingOptions.ctrl: screenController.set_font(None, None, None, not screenController.italics)
         elif evt.type == pygame.KEYUP:
-            if evt.key == pygame.K_LSHIFT or evt.key == pygame.K_RSHIFT: typingOptions.flip_caps()
-            elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL : typingOptions.ctrl = False
+            if evt.key == pygame.K_LSHIFT: typingOptions.shifts[0] = False
+            elif evt.key == pygame.K_RSHIFT: typingOptions.shifts[1] = False
+            elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL: typingOptions.ctrl = False
             elif evt.key == pygame.K_BACKSPACE: typingOptions.backspacing = -1
             elif evt.key == pygame.K_DELETE: typingOptions.deleting = -1
+            elif evt.unicode == "+": typingOptions.maximising = -1
+            elif evt.key == pygame.K_MINUS: typingOptions.minimising = -1
         elif evt.type == pygame.MOUSEWHEEL:
             screenController.scroll_top = min(0, screenController.scroll_top + (evt.y * 8))
         elif evt.type == pygame.MOUSEBUTTONDOWN:
@@ -307,12 +339,12 @@ while running:
     screen.fill(BLACK)
     typingOptions.increment_blink()
     if typingOptions.backspacing != -1:
-        if typingOptions.increment_and_backspace():
+        if typingOptions.increment_counter("backspace"):
             if text.selected_range[0] != -1: text.remove_selected()
             elif not typingOptions.ctrl: text.remove_character(True)
             else: text.remove_word(True);
     if typingOptions.deleting != -1:
-        if typingOptions.increment_and_delete():
+        if typingOptions.increment_counter("delete"):
             if text.selected_range[0] != -1: text.remove_selected()
             elif not typingOptions.ctrl: text.remove_character(False)
             else: text.remove_word(False);
@@ -322,14 +354,21 @@ while running:
         
         y_pos = screenController.get_y_of_line(screenController.get_line_number(pygame.mouse.get_pos()[1]))
 
-        if current_frame % 60 % 5 == 0:
+        if current_frame % FPS % 5 == 0:
             screenController.adjust_scroll_top(y_pos + 0.1)
             screenController.adjust_scroll_top(y_pos - 0.1)
+
+    if typingOptions.maximising != -1:
+        if typingOptions.increment_counter("maximise"): screenController.set_font(None, screenController.font_size + 2, None, None)
+        typingOptions.reset_blink()
+    if typingOptions.minimising != -1:
+        if typingOptions.increment_counter("minimise"): screenController.set_font(None, screenController.font_size - 2, None, None)
+        typingOptions.reset_blink()
 
     screenController.draw_text(True, text.before_cursor, text.after_cursor, typingOptions.get_blink_status(), just_typed, text.selected_range)
 
     pygame.display.flip()
     current_frame += 1
-    clock.tick(60)
+    clock.tick(FPS)
 
 pygame.quit()
