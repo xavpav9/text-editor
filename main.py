@@ -146,7 +146,7 @@ class ScreenController:
         else:
             if cursor_pos[0] <= self.padding_x / 2: start_pos, end_pos = len(full_text) - len(new_text_after), len(old_text_before)
                 # for when the mouse is out of the editable screen, select the first letter of the line
-            else: start_pos, end_pos = len(full_text) - len(new_text_after),len(old_text_before)
+            else: start_pos, end_pos = len(full_text) - len(new_text_after), len(old_text_before)
 
         return start_pos, end_pos
 
@@ -233,6 +233,11 @@ class Text:
             while self.after_cursor != "" and self.after_cursor[0] != " ":
                 self.after_cursor = self.after_cursor[1:]
             if self.after_cursor != "": self.after_cursor = self.after_cursor[1:]
+    def remove_selected(self):
+        full_text = self.before_cursor + self.after_cursor
+        self.before_cursor = full_text[:self.selected_range[0]]
+        self.after_cursor = full_text[self.selected_range[1]:]
+        self.selected_range = [-1, -1]
 
 running = True
 typingOptions = TypingOptions()
@@ -250,12 +255,8 @@ while running:
                 text.selected_range = [-1,-1]
                 just_typed = True
                 text.add_character(typingOptions.get_character(evt.key), typingOptions.caps)
-            elif evt.key == pygame.K_BACKSPACE: 
-                text.selected_range = [-1,-1]
-                typingOptions.increment_and_backspace()
-            elif evt.key == pygame.K_DELETE:
-                text.selected_range = [-1,-1]
-                typingOptions.increment_and_delete()
+            elif evt.key == pygame.K_BACKSPACE: typingOptions.increment_and_backspace()
+            elif evt.key == pygame.K_DELETE: typingOptions.increment_and_delete()
             elif evt.key == pygame.K_CAPSLOCK or evt.key == pygame.K_LSHIFT or evt.key == pygame.K_RSHIFT: typingOptions.flip_caps()
             elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL : typingOptions.ctrl = True
         elif evt.type == pygame.KEYUP:
@@ -280,11 +281,14 @@ while running:
     typingOptions.increment_blink()
     if typingOptions.backspacing != -1:
         if typingOptions.increment_and_backspace():
-            if not typingOptions.ctrl: text.remove_character(True)
+            print(text.selected_range)
+            if text.selected_range[0] != -1: text.remove_selected()
+            elif not typingOptions.ctrl: text.remove_character(True)
             else: text.remove_word(True);
     if typingOptions.deleting != -1:
         if typingOptions.increment_and_delete():
-            if not typingOptions.ctrl: text.remove_character(False)
+            if text.selected_range[0] != -1: text.remove_selected()
+            elif not typingOptions.ctrl: text.remove_character(False)
             else: text.remove_word(False);
     if typingOptions.holding:
         text.before_cursor, text.after_cursor, line = screenController.get_new_text_positions(pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
