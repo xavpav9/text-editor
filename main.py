@@ -108,7 +108,9 @@ class ScreenController:
 
         if draw:
             for i in range(len(new_lines)):
-                if highlighted_range[0] >= new_lines[i][0]: self.highlighting = True
+                if (i == len(new_lines) - 1 and highlighted_range[0] >= new_lines[i][0]) or (highlighted_range[0] >= new_lines[i][0] and highlighted_range[0] < new_lines[i+1][0]):
+                    # either on last line and start is not reached, or not on last line, and start is on current line
+                    self.highlighting = True
 
                 if self.highlighting and highlighted_range[1] > new_lines[i][0]:
                     self.blit_line_to_screen(new_lines[i][1], i, False, blink, just_typed, max(0, highlighted_range[0] - new_lines[i][0]), min(len(new_lines[i][1]), highlighted_range[1] - new_lines[i][0]))
@@ -116,11 +118,23 @@ class ScreenController:
                     self.highlighting = False
                     self.blit_line_to_screen(new_lines[i][1], i, False, blink, just_typed)
 
+
                 if i == cursor_position[0]:
-                    if len(new_lines[i][1]) >= len(cursor_position[1]):
+                    line_to_compare = new_lines[i][1]
+                    if i != len(new_lines) - 1 and new_lines[i][0] + chars_per_line - 1 == new_lines[i+1][0] and len(new_lines[i][1]) == chars_per_line:
+                        # removes "-" if there is an overflow (detected using the current_text_pos and chars_per_line)
+                        line_to_compare = new_lines[i][1][:-1]
+
+
+                    if len(line_to_compare) == len(cursor_position[1]) and line_to_compare != new_lines[i][1]:
+                        self.blit_line_to_screen("", i+1, True, blink, just_typed)
+                    elif len(line_to_compare) >= len(cursor_position[1]):
                         self.blit_line_to_screen(cursor_position[1], i, True, blink, just_typed)
                     else:
-                        last_word = cursor_position[1].split(" ")[-1]
+                        if line_to_compare != new_lines[i][1]:
+                            last_word = cursor_position[1].split(" ")[-1][chars_per_line - 1:]
+                        else:
+                            last_word = cursor_position[1].split(" ")[-1]
                         self.blit_line_to_screen(last_word, i + 1, True, blink, just_typed)
 
             self.highlighting = False
