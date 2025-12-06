@@ -1,4 +1,4 @@
-import pygame
+import pygame, pyperclip
 
 pygame.init()
 
@@ -234,10 +234,11 @@ class Text:
                 self.after_cursor = self.after_cursor[1:]
             if self.after_cursor != "": self.after_cursor = self.after_cursor[1:]
     def remove_selected(self):
-        full_text = self.before_cursor + self.after_cursor
-        self.before_cursor = full_text[:self.selected_range[0]]
-        self.after_cursor = full_text[self.selected_range[1]:]
-        self.selected_range = [-1, -1]
+        if self.selected_range[0] != -1:
+            full_text = self.before_cursor + self.after_cursor
+            self.before_cursor = full_text[:self.selected_range[0]]
+            self.after_cursor = full_text[self.selected_range[1]:]
+            self.selected_range = [-1, -1]
 
 running = True
 typingOptions = TypingOptions()
@@ -252,13 +253,15 @@ while running:
         elif evt.type == pygame.KEYDOWN:
             typingOptions.reset_blink()
             if not typingOptions.ctrl and typingOptions.is_character_in_char_set(evt.key):
-                text.selected_range = [-1,-1]
+                text.remove_selected()
                 just_typed = True
                 text.add_character(typingOptions.get_character(evt.key), typingOptions.caps)
             elif evt.key == pygame.K_BACKSPACE: typingOptions.increment_and_backspace()
             elif evt.key == pygame.K_DELETE: typingOptions.increment_and_delete()
             elif evt.key == pygame.K_CAPSLOCK or evt.key == pygame.K_LSHIFT or evt.key == pygame.K_RSHIFT: typingOptions.flip_caps()
-            elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL : typingOptions.ctrl = True
+            elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL: typingOptions.ctrl = True
+            elif evt.key == pygame.K_c and typingOptions.ctrl: pyperclip.copy(f"{text.before_cursor}{text.after_cursor}"[text.selected_range[0]:text.selected_range[1]])
+            elif evt.key == pygame.K_v and typingOptions.ctrl: text.before_cursor += pyperclip.paste()
         elif evt.type == pygame.KEYUP:
             if evt.key == pygame.K_LSHIFT or evt.key == pygame.K_RSHIFT: typingOptions.flip_caps()
             elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL : typingOptions.ctrl = False
