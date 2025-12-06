@@ -7,6 +7,7 @@ WHITE, BLACK, LIGHT_BLUE = (255,255,255), (0,0,0), (128,128,255)
 screen = pygame.display.set_mode((400, 200))
 pygame.display.set_caption("Text Editor")
 clock = pygame.time.Clock()
+current_frame = 0
 
 class ScreenController:
     def __init__(self, screen):
@@ -19,15 +20,27 @@ class ScreenController:
         self.line_spacing = 12
         self.highlighting = False
 
+    def get_line_number(self, mouse_y):
+        line_number = 0
+        while mouse_y > self.scroll_top + self.padding_y + (self.letter_height + self.line_spacing) * line_number:
+            line_number += 1
+        return line_number - 1
+
+    def get_y_of_line(self, line_number):
+        return self.scroll_top + self.padding_y + (self.letter_height + self.line_spacing) * line_number
+
+    def adjust_scroll_top(self, y, just_typed=True):
+        if y < 0 and just_typed:
+            self.scroll_top += (self.line_spacing - y)
+        elif y + self.letter_height + self.line_spacing > screen.get_size()[1] and just_typed:
+            self.scroll_top -= (y + self.letter_height + self.line_spacing - screen.get_size()[1])
+        self.scroll_top = min(0, self.scroll_top)
+
     def blit_line_to_screen(self, text, line_number, cursor, blink=False, just_typed=False, start_highlight=0, end_highlight=-1):
-        coords = (self.padding_x / 2, self.scroll_top + self.padding_y + (self.letter_height + self.line_spacing) * line_number)
+        coords = (self.padding_x / 2, self.get_y_of_line(line_number))
         if cursor:
             if blink: pygame.draw.rect(screen, WHITE, (coords[0] + len(text) * self.letter_width, coords[1], 2, self.letter_height))
-            if coords[1] < 0 and just_typed:
-                self.scroll_top +=  (self.line_spacing - coords[1])
-            elif coords[1] + self.letter_height + self.line_spacing > screen.get_size()[1] and just_typed:
-                self.scroll_top -= (coords[1] + self.letter_height + self.line_spacing - screen.get_size()[1])
-            self.scroll_top = min(0, self.scroll_top)
+            self.adjust_scroll_top(coords[1], just_typed)
         elif self.highlighting:
             pygame.draw.rect(screen, LIGHT_BLUE, (coords[0] + start_highlight * self.letter_width, coords[1], (end_highlight - start_highlight) * self.letter_width, self.letter_height))
             self.screen.blit(self.font.render(text, True, WHITE), coords)
@@ -115,10 +128,7 @@ class ScreenController:
         return new_lines
 
     def get_new_text_positions(self, mouse_pos, text_before_cursor, text_after_cursor):
-        line_number = 0
-        while mouse_pos[1] > self.scroll_top + self.padding_y + (self.letter_height + self.line_spacing) * line_number:
-            line_number += 1
-        line_number -= 1
+        line_number = self.get_line_number(mouse_pos[1])
 
         x_index = max(0, (mouse_pos[0] - self.padding_x / 2) // self.letter_width)
 
@@ -284,7 +294,6 @@ while running:
     typingOptions.increment_blink()
     if typingOptions.backspacing != -1:
         if typingOptions.increment_and_backspace():
-            print(text.selected_range)
             if text.selected_range[0] != -1: text.remove_selected()
             elif not typingOptions.ctrl: text.remove_character(True)
             else: text.remove_word(True);
@@ -296,10 +305,17 @@ while running:
     if typingOptions.holding:
         text.before_cursor, text.after_cursor, line = screenController.get_new_text_positions(pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
         text.selected_range = screenController.get_selected_text(typingOptions.recent_click, pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
+        
+        y_pos = screenController.get_y_of_line(screenController.get_line_number(pygame.mouse.get_pos()[1]))
+
+        if current_frame % 60 % 5 == 0:
+            screenController.adjust_scroll_top(y_pos + 0.1)
+            screenController.adjust_scroll_top(y_pos - 0.1)
 
     screenController.draw_text(True, text.before_cursor, text.after_cursor, typingOptions.get_blink_status(), just_typed, text.selected_range)
 
     pygame.display.flip()
+    current_frame += 1
     clock.tick(60)
 
 pygame.quit()
