@@ -9,8 +9,8 @@ while filename == "" or filename == __file__.split("/")[-1]:
 
 pygame.init()
 
-screen = pygame.display.set_mode((400, 200))
-pygame.display.set_caption("Text Editor")
+screen = pygame.display.set_mode((500, 700), pygame.RESIZABLE)
+pygame.display.set_caption(f"Text Editor - {filename}")
 clock = pygame.time.Clock()
 current_frame = 0
 
@@ -263,14 +263,14 @@ class Text:
 
     def remove_word(self, is_backspace):
         if is_backspace:
-            while self.before_cursor != "" and self.before_cursor[-1] != " ":
+            while self.before_cursor != "" and self.before_cursor[-1] != " " and self.before_cursor[-1] != "\n":
                 self.before_cursor = self.before_cursor[:-1]
             if self.before_cursor != "": self.before_cursor = self.before_cursor[:-1]
         elif not is_backspace:
-            #to fix
-            while self.after_cursor != "" and self.after_cursor[0] != " ":
+            while self.after_cursor != "" and self.after_cursor[0] != " " and self.after_cursor[0] != "\n":
                 self.after_cursor = self.after_cursor[1:]
             if self.after_cursor != "": self.after_cursor = self.after_cursor[1:]
+
     def remove_selected(self):
         if self.selected_range[0] != -1:
             full_text = self.before_cursor + self.after_cursor
@@ -291,6 +291,7 @@ class FileHandler:
         return True
 
     def write_to_file(self, text):
+        pygame.display.set_caption(f"Text Editor - {self.filename} (Saved)")
         file = open(self.filename, "w")
         file.write(text)
         file.close()
@@ -319,7 +320,9 @@ while running:
                 text.remove_selected()
                 just_typed = True
                 text.add_character(evt.unicode)
-            elif evt.key == pygame.K_RETURN and not typingOptions.ctrl: text.add_character("\n")
+            elif evt.key == pygame.K_RETURN and not typingOptions.ctrl:
+                just_typed = True
+                text.add_character("\n")
             elif evt.key == pygame.K_BACKSPACE: typingOptions.increment_counter("backspace")
             elif evt.key == pygame.K_DELETE: typingOptions.increment_counter("delete")
             elif evt.key == pygame.K_LSHIFT: typingOptions.shifts[0] = True
@@ -357,11 +360,13 @@ while running:
     typingOptions.increment_blink()
     if typingOptions.backspacing != -1:
         if typingOptions.increment_counter("backspace"):
+            just_typed = True
             if text.selected_range[0] != -1: text.remove_selected()
             elif not typingOptions.ctrl: text.remove_character(True)
             else: text.remove_word(True);
     if typingOptions.deleting != -1:
         if typingOptions.increment_counter("delete"):
+            just_typed = True
             if text.selected_range[0] != -1: text.remove_selected()
             elif not typingOptions.ctrl: text.remove_character(False)
             else: text.remove_word(False);
@@ -378,11 +383,16 @@ while running:
     if typingOptions.maximising != -1:
         if typingOptions.increment_counter("maximise"): screenController.set_font(None, screenController.font_size + 2, None, None)
         typingOptions.reset_blink()
+        just_typed = True
     if typingOptions.minimising != -1:
         if typingOptions.increment_counter("minimise"): screenController.set_font(None, screenController.font_size - 2, None, None)
         typingOptions.reset_blink()
+        just_typed = True
 
     screenController.draw_text(True, text.before_cursor, text.after_cursor, typingOptions.get_blink_status(), just_typed, text.selected_range)
+
+    if just_typed:
+        pygame.display.set_caption(f"Text Editor - {filename} (Unsaved)")
 
     pygame.display.flip()
     current_frame += 1
