@@ -199,11 +199,13 @@ class TypingOptions:
         self.blink_period = 30
         self.holding = False
         self.recent_click = (0,0)
+        self.current_letter = ""
 
         self.backspacing = -1
         self.deleting = -1
         self.maximising = -1
         self.minimising = -1
+        self.typing = -1
 
     @property
     def ctrl(self):
@@ -240,6 +242,9 @@ class TypingOptions:
             case "minimise":
                 counter_value = self.minimising
                 self.minimising += 1
+            case "typing":
+                counter_value = self.typing
+                self.typing += 1
             case _:
                 raise Exception("Invalid counter")
 
@@ -318,11 +323,12 @@ while running:
             typingOptions.reset_blink()
             if not typingOptions.ctrl and evt.unicode != "" and typingOptions.is_valid_char(evt.unicode):
                 text.remove_selected()
-                just_typed = True
-                text.add_character(evt.unicode)
+                typingOptions.typing = 0
+                typingOptions.current_letter = evt.unicode
             elif evt.key == pygame.K_RETURN and not typingOptions.ctrl:
-                just_typed = True
-                text.add_character("\n")
+                text.remove_selected()
+                typingOptions.typing = 0
+                typingOptions.current_letter = "\n"
             elif evt.key == pygame.K_BACKSPACE: typingOptions.increment_counter("backspace")
             elif evt.key == pygame.K_DELETE: typingOptions.increment_counter("delete")
             elif evt.key == pygame.K_LSHIFT: typingOptions.shifts[0] = True
@@ -336,7 +342,15 @@ while running:
             elif evt.key == pygame.K_i and typingOptions.ctrl: screenController.set_font(None, None, None, not screenController.italics)
             elif evt.key == pygame.K_s and typingOptions.ctrl: fileHandler.write_to_file(text.before_cursor + text.after_cursor)
         elif evt.type == pygame.KEYUP:
-            if evt.key == pygame.K_LSHIFT: typingOptions.shifts[0] = False
+            if evt.unicode != "" and typingOptions.is_valid_char(evt.unicode):
+                if typingOptions.current_letter == evt.unicode:
+                    typingOptions.typing = -1
+                    typingOptions.current_letter = ""
+            elif evt.key == pygame.K_RETURN:
+                if typingOptions.current_letter == "\n":
+                    typingOptions.typing = -1
+                    typingOptions.current_letter = ""
+            elif evt.key == pygame.K_LSHIFT: typingOptions.shifts[0] = False
             elif evt.key == pygame.K_RSHIFT: typingOptions.shifts[1] = False
             elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL: typingOptions.ctrl = False
             elif evt.key == pygame.K_BACKSPACE: typingOptions.backspacing = -1
@@ -350,7 +364,6 @@ while running:
                 typingOptions.holding = True
                 typingOptions.recent_click = pygame.mouse.get_pos()
                 text.before_cursor, text.after_cursor, _ = screenController.get_new_text_positions(pygame.mouse.get_pos(), text.before_cursor, text.after_cursor)
-                typingOptions.reset_blink()
         elif evt.type == pygame.MOUSEBUTTONUP:
             if evt.button == 1: typingOptions.holding = False
 
@@ -360,13 +373,11 @@ while running:
     typingOptions.increment_blink()
     if typingOptions.backspacing != -1:
         if typingOptions.increment_counter("backspace"):
-            just_typed = True
             if text.selected_range[0] != -1: text.remove_selected()
             elif not typingOptions.ctrl: text.remove_character(True)
             else: text.remove_word(True);
     if typingOptions.deleting != -1:
         if typingOptions.increment_counter("delete"):
-            just_typed = True
             if text.selected_range[0] != -1: text.remove_selected()
             elif not typingOptions.ctrl: text.remove_character(False)
             else: text.remove_word(False);
@@ -382,10 +393,12 @@ while running:
 
     if typingOptions.maximising != -1:
         if typingOptions.increment_counter("maximise"): screenController.set_font(None, screenController.font_size + 2, None, None)
-        typingOptions.reset_blink()
-        just_typed = True
     if typingOptions.minimising != -1:
         if typingOptions.increment_counter("minimise"): screenController.set_font(None, screenController.font_size - 2, None, None)
+    if typingOptions.typing != -1:
+        if typingOptions.increment_counter("typing"): text.add_character(typingOptions.current_letter)
+
+    if typingOptions.typing != -1 or typingOptions.maximising != -1 or typingOptions.minimising != -1 or typingOptions.holding or typingOptions.backspacing != -1 or typingOptions.deleting != -1:
         typingOptions.reset_blink()
         just_typed = True
 
