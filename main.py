@@ -1,9 +1,13 @@
 import pygame, pyperclip
 
-pygame.init()
-
 WHITE, BLACK, LIGHT_BLUE = (255,255,255), (0,0,0), (128,128,255)
 FPS = 60
+
+filename = ""
+while filename == "" or filename == __file__.split("/")[-1]:
+    filename = input("Enter a filename to edit/create: ")
+
+pygame.init()
 
 screen = pygame.display.set_mode((400, 200))
 pygame.display.set_caption("Text Editor")
@@ -245,8 +249,8 @@ class TypingOptions:
 
 
 class Text:
-    def __init__(self):
-        self.before_cursor = ""
+    def __init__(self, initial_text=""):
+        self.before_cursor = initial_text
         self.after_cursor = ""
         self.selected_range = [-1, -1]
 
@@ -274,9 +278,34 @@ class Text:
             self.after_cursor = full_text[self.selected_range[1]:]
             self.selected_range = [-1, -1]
 
+class FileHandler:
+    def __init__(self, filename):
+        if not self.check_file_exists(filename): open(filename, "x")
+        self.filename = filename
+
+    def check_file_exists(self, filename):
+        try:
+            open(filename, "r")
+        except:
+            return False
+        return True
+
+    def write_to_file(self, text):
+        file = open(self.filename, "w")
+        file.write(text)
+        file.close()
+
+    def read_file(self):
+        file = open(self.filename, "r")
+        text = file.read()
+        file.close()
+        return text
+
+
 running = True
+fileHandler = FileHandler(filename)
 typingOptions = TypingOptions()
-text = Text()
+text = Text(fileHandler.read_file())
 screenController = ScreenController(screen)
 
 while running:
@@ -302,6 +331,7 @@ while running:
             elif evt.key == pygame.K_MINUS and typingOptions.ctrl: typingOptions.increment_counter("minimise")
             elif evt.key == pygame.K_b and typingOptions.ctrl: screenController.set_font(None, None, not screenController.bold, None)
             elif evt.key == pygame.K_i and typingOptions.ctrl: screenController.set_font(None, None, None, not screenController.italics)
+            elif evt.key == pygame.K_s and typingOptions.ctrl: fileHandler.write_to_file(text.before_cursor + text.after_cursor)
         elif evt.type == pygame.KEYUP:
             if evt.key == pygame.K_LSHIFT: typingOptions.shifts[0] = False
             elif evt.key == pygame.K_RSHIFT: typingOptions.shifts[1] = False
