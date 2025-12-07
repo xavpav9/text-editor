@@ -1,9 +1,12 @@
-import pygame, pyperclip
+import pygame, pyperclip, sys
 
 WHITE, BLACK, LIGHT_BLUE = (255,255,255), (0,0,0), (128,128,255)
 FPS = 60
 
 filename = ""
+if len(sys.argv) == 2:
+    filename = sys.argv[1]
+
 while filename == "" or filename == __file__.split("/")[-1]:
     filename = input("Enter a filename to edit/create: ")
 

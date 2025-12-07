@@ -1,7 +1,7 @@
 # Text Editor
 
 This is a basic text editor that I am working on.
-It is made using pygame and pyperclip in python. Requirements are in requirements.txt ( To install, run "pip install -r requirements.txt" )
+It is made using pygame, pyperclip and sys in python. Requirements are in requirements.txt ( To install, run "pip install -r requirements.txt" )
 
 ### Supports so far:
 
