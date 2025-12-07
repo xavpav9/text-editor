@@ -9,7 +9,7 @@ while filename == "" or filename == __file__.split("/")[-1]:
 
 pygame.init()
 
-screen = pygame.display.set_mode((500, 700), pygame.RESIZABLE)
+screen = pygame.display.set_mode((700, 500), pygame.RESIZABLE)
 pygame.display.set_caption(f"Text Editor - {filename}")
 clock = pygame.time.Clock()
 current_frame = 0
@@ -350,7 +350,7 @@ while running:
                 if typingOptions.current_letter == "\n":
                     typingOptions.typing = -1
                     typingOptions.current_letter = ""
-            elif evt.key == pygame.K_LSHIFT: typingOptions.shifts[0] = False
+            if evt.key == pygame.K_LSHIFT: typingOptions.shifts[0] = False
             elif evt.key == pygame.K_RSHIFT: typingOptions.shifts[1] = False
             elif evt.key == pygame.K_LCTRL or evt.key == pygame.K_RCTRL: typingOptions.ctrl = False
             elif evt.key == pygame.K_BACKSPACE: typingOptions.backspacing = -1
